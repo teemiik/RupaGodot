@@ -46,6 +46,11 @@ BSH_CX, BSH_CY, BSH_RX, BSH_RY = 132, 94, 17, 6
 BSH_STR = 0.28
 BALL_CX, BALL_CY, BALL_R = 132, 75, 16
 
+# SVG-faithful градиенты (objectBoundingBox -> userSpace, поле 200x200):
+HOLE_GCX, HOLE_GCY, HOLE_GR = 100, 100.64, 57.04   # radialGradient cx=.5 cy=.42 r=.62 (bbox 92)
+BALL_GCX, BALL_GCY, BALL_GR = 126.88, 68.6, 27.2    # radialGradient cx=.34 cy=.3 r=.85 (bbox 32)
+SVG_BLUR = 3.5                                      # feGaussianBlur stdDeviation из icon.svg
+
 # Адаптивная иконка: мотив вписываем в центральную safe-zone (~60% поля)
 GC = np.array([100.5, 107.5])   # центр группы «отверстие+шар» в 200-пространстве
 GROUP_EXT = 97.0                # макс. габарит группы
@@ -85,18 +90,22 @@ def rounded_mask(size):
 
 
 def ellipse_alpha(X, Y, cx, cy, rx, ry):
-    d = ((X - cx) / rx) ** 2 + ((Y - cy) / ry) ** 2
-    return np.clip(1 - d, 0, 1)
+    """Сплошной эллипс с антиалиасингом ~1px (как заливка в SVG)."""
+    rn = np.sqrt(((X - cx) / rx) ** 2 + ((Y - cy) / ry) ** 2)   # 0 в центре, 1 на границе
+    w = 1.0 / min(rx, ry)                                       # 1px в нормированных единицах
+    return np.clip((1.0 - rn) / w + 0.5, 0, 1)
 
 
 def circle_alpha(X, Y, cx, cy, r):
-    d2 = (X - cx) ** 2 + (Y - cy) ** 2
-    return np.clip(1 - d2 / (r * r), 0, 1)
+    """Сплошной круг с антиалиасингом ~1px."""
+    d = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2)
+    return np.clip(r - d + 0.5, 0, 1)
 
 
 def ring_alpha(X, Y, cx, cy, r, w):
+    """Кольцо-обводка шириной w (как SVG stroke), 1px AA."""
     dist = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2)
-    return np.clip(1 - np.abs(dist - r) / (w / 2.0), 0, 1)
+    return np.clip(w / 2.0 - np.abs(dist - r) + 0.5, 0, 1)
 
 
 def blur(a, px):
@@ -107,22 +116,21 @@ def blur(a, px):
     return np.array(im, dtype=float) / 255.0
 
 
-def radial_rgb(X, Y, cx, cy, r, c_in, c_out):
-    dist = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2)
-    t = np.clip(dist / r, 0, 1)[..., None]
-    return c_in * (1 - t) + c_out * t
-
-
-def ball_rgb(X, Y, cx, cy, r):
+def radial_stops(X, Y, cx, cy, r, stops):
+    """Радиальный градиент с произвольными стопами (один-в-один как в SVG).
+    stops: [(pos, np.array rgb), ...] отсортированы по pos."""
     dist = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2)
     t = np.clip(dist / r, 0, 1)
-    t1 = 0.55
-    low = t <= t1
-    tt = np.where(low, t / t1, (t - t1) / (1 - t1))
-    tt = tt[..., None]
-    c_low = BALL_C0 * (1 - tt) + BALL_C1 * tt
-    c_high = BALL_C1 * (1 - tt) + BALL_C2 * tt
-    return np.where(low[..., None], c_low, c_high)
+    pos = np.array([s[0] for s in stops])
+    cols = np.array([s[1] for s in stops])
+    result = np.broadcast_to(cols[0], t.shape + (3,)).copy()
+    for i in range(len(stops) - 1):
+        p0, p1 = pos[i], pos[i + 1]
+        seg = (t >= p0) & (t <= p1)
+        tt = ((t - p0) / (p1 - p0))[..., None]
+        chan = cols[i] * (1 - tt) + cols[i + 1] * tt
+        result = np.where(seg[..., None], chan, result)
+    return result
 
 
 def over_rgba(acc_rgb, acc_a, top_rgb, top_a):
@@ -144,7 +152,7 @@ def render_bg(size, rounded):
     X, Y = grid(size)
     img = vgradient(size)
     g = ellipse_alpha(X, Y, GLOW_CX * k, GLOW_CY * k, GLOW_RX * k, GLOW_RY * k)
-    g = blur(g, GLOW_RX * k * 0.4)
+    g = blur(g, SVG_BLUR * k)   # SVG: feGaussianBlur stdDeviation=3.5
     img = over_rgba(img, np.ones((size, size)), GLOW[None, None, :] *
                     np.ones((size, size, 1)), g * GLOW_STR)[0]
     alpha = rounded_mask(size) if rounded else np.full((size, size), 255.0)
@@ -170,23 +178,27 @@ def render_motif(size, mode):
     # рим-лайт (под отверстием — кольцо выглядывает по краю)
     rgb, a = over_rgba(rgb, a, np.broadcast_to(RIM, (size, size, 3)),
                        ring_alpha(X, Y, hc[0], hc[1], S(RIM_R), S(RIM_W)) * RIM_STR)
-    # отверстие
+    # отверстие (SVG radial: смещённый центр + тёмное плато до 0.5)
+    ghc = P((HOLE_GCX, HOLE_GCY))
     rgb, a = over_rgba(rgb, a,
-                       radial_rgb(X, Y, hc[0], hc[1], S(HOLE_R), HOLE_IN, HOLE_OUT),
+                       radial_stops(X, Y, ghc[0], ghc[1], S(HOLE_GR),
+                                    [(0, HOLE_IN), (0.5, HOLE_IN), (1, HOLE_OUT)]),
                        circle_alpha(X, Y, hc[0], hc[1], S(HOLE_R)))
-    # внутренняя тень
+    # внутренняя тень (в SVG без размытия)
     ic = P((INNER_CX, INNER_CY))
-    ia = blur(ellipse_alpha(X, Y, ic[0], ic[1], S(INNER_RX), S(INNER_RY)) * INNER_STR,
-              S(INNER_RX) * 0.15)
+    ia = ellipse_alpha(X, Y, ic[0], ic[1], S(INNER_RX), S(INNER_RY)) * INNER_STR
     rgb, a = over_rgba(rgb, a, np.broadcast_to(BLACK, (size, size, 3)), ia)
-    # тень шара
+    # тень шара (SVG blur 3.5)
     bsc = P((BSH_CX, BSH_CY))
     ba = blur(ellipse_alpha(X, Y, bsc[0], bsc[1], S(BSH_RX), S(BSH_RY)) * BSH_STR,
-              S(BSH_RX) * 0.35)
+              SVG_BLUR * k)
     rgb, a = over_rgba(rgb, a, np.broadcast_to(BLACK, (size, size, 3)), ba)
-    # шар
+    # шар (SVG radial со смещённым бликом)
     bll = P((BALL_CX, BALL_CY))
-    rgb, a = over_rgba(rgb, a, ball_rgb(X, Y, bll[0], bll[1], S(BALL_R)),
+    gbc = P((BALL_GCX, BALL_GCY))
+    rgb, a = over_rgba(rgb, a,
+                       radial_stops(X, Y, gbc[0], gbc[1], S(BALL_GR),
+                                    [(0, BALL_C0), (0.55, BALL_C1), (1, BALL_C2)]),
                        circle_alpha(X, Y, bll[0], bll[1], S(BALL_R)))
     return rgb, a
 
