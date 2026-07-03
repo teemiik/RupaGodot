@@ -10,6 +10,9 @@
 *.pck
 *.zip
 
+# Visual brainstorming companion
+.superpowers/
+
 # OS / editor
 .DS_Store
 .idea/
