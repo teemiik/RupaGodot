@@ -1,0 +1,17 @@
+# Godot 4+ specific ignores
+.godot/
+/android/build/
+
+# Build outputs
+/build/
+*.apk
+*.aab
+*.apk.idsig
+*.pck
+*.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*~

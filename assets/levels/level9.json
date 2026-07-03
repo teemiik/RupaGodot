@@ -1,0 +1,21 @@
+{
+  "board": "board",
+  "background": "background",
+  "holes": [
+    { "x": 0.5,  "y": 0.3 },
+    { "x": 0.25, "y": 0.4 },
+    { "x": 0.75, "y": 0.4 },
+    { "x": 0.3,  "y": 0.78 },
+    { "x": 0.7,  "y": 0.78 },
+    { "x": 0.5,  "y": 0.9 }
+  ],
+  "dynamicControl": { "lowerX": 0.2, "upperX": 0.45, "inverted": false },
+  "dynamicHoles": [
+    { "x": 0.2, "xDin": 1,  "y": 0.34, "yDin": 0 },
+    { "x": 0.8, "xDin": -1, "y": 0.34, "yDin": 0 }
+  ],
+  "barriers": [
+    { "x": 0.1, "y": 0.52, "w": 0.306, "h": 0.0313, "rotation": -25 },
+    { "x": 0.6, "y": 0.56, "w": 0.306, "h": 0.0313, "rotation": 25 }
+  ]
+}
