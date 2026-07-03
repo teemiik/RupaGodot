@@ -92,7 +92,10 @@ jobs:
           printf '%s' "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
       - name: Export release APK
-        run: godot --headless --export-release "Android" build/Rupa-release.apk
+        # Godot won't create the output dir; it's gitignored, so make it first.
+        run: |
+          mkdir -p build
+          godot --headless --export-release "Android" build/Rupa-release.apk
 
       - name: Re-sign with release keystore (master) / keep debug (PR)
         env:
