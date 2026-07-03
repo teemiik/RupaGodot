@@ -91,11 +91,15 @@ jobs:
         run: |
           printf '%s' "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - name: Export release APK
+      - name: Export APK
+        # Use --export-debug so Godot signs with the configured *debug* keystore
+        # (--export-release needs a release keystore in the preset, which only
+        # exists on master). The re-sign step below upgrades it to the release
+        # key on master; on PRs it stays debug-signed.
         # Godot won't create the output dir; it's gitignored, so make it first.
         run: |
           mkdir -p build
-          godot --headless --export-release "Android" build/Rupa-release.apk
+          godot --headless --export-debug "Android" build/Rupa.apk
 
       - name: Re-sign with release keystore (master) / keep debug (PR)
         env:
@@ -111,7 +115,7 @@ jobs:
               --ks-pass pass:"$SIGNING_STORE_PASSWORD" \
               --ks-key-alias "$SIGNING_KEY_ALIAS" \
               --key-pass pass:"$SIGNING_KEY_PASSWORD" \
-              build/Rupa-release.apk
+              build/Rupa.apk
             echo "Re-signed with release keystore."
           else
             echo "No release keystore (PR build); keeping debug-signed APK."
