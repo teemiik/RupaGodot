@@ -27,9 +27,6 @@
   <!-- плитка -->
   <rect x="6" y="6" width="188" height="188" rx="44" fill="url(#bg)"/>
 
-  <!-- верхнее тёплое свечение -->
-  <ellipse cx="100" cy="70" rx="92" ry="46" fill="#F5E6C7" opacity="0.22" filter="url(#soft)"/>
-
   <!-- кайма-рулайт вокруг отверстия -->
   <ellipse cx="100" cy="108" rx="48" ry="48" fill="none" stroke="#F5E6C7" stroke-width="2.5" opacity="0.5"/>
 

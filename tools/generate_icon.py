@@ -147,14 +147,8 @@ def over_rgba(acc_rgb, acc_a, top_rgb, top_a):
 # Слои
 # ---------------------------------------------------------------------------
 def render_bg(size, rounded):
-    """Градиент + верхнее свечение. Возвращает (rgb, alpha 0..255)."""
-    k = size / 200.0
-    X, Y = grid(size)
+    """Чистый вертикальный градиент (свечение убрано). Возвращает (rgb, alpha 0..255)."""
     img = vgradient(size)
-    g = ellipse_alpha(X, Y, GLOW_CX * k, GLOW_CY * k, GLOW_RX * k, GLOW_RY * k)
-    g = blur(g, SVG_BLUR * k)   # SVG: feGaussianBlur stdDeviation=3.5
-    img = over_rgba(img, np.ones((size, size)), GLOW[None, None, :] *
-                    np.ones((size, size, 1)), g * GLOW_STR)[0]
     alpha = rounded_mask(size) if rounded else np.full((size, size), 255.0)
     return img, alpha
 

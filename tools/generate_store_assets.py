@@ -115,12 +115,6 @@ def make_bg(top, bot, glow):
     img = np.empty((H, W, 3))
     for c in range(3):
         img[:, :, c] = top[c] * (1 - ty) + bot[c] * ty
-    # центральное свечение (как background_pixel: центр 0.5,0.3; r 0.55)
-    gdx = _X / (W - 1) - 0.5
-    gdy = _Y / (H - 1) - 0.3
-    g = 1.0 - np.sqrt(gdx * gdx + gdy * gdy) / 0.55
-    g = np.clip(g, 0, None) ** 2 * 0.22
-    img = img * (1 - g[..., None]) + glow[None, None, :] * g[..., None]
     # виньетка
     vdx = _X / (W - 1) - 0.5
     vdy = _Y / (H - 1) - 0.5
@@ -391,10 +385,6 @@ def render_feature_graphic():
     img = np.empty((FH, FW, 3))
     for c in range(3):
         img[:, :, c] = gi.GRAD_TOP[c] * (1 - ty) + gi.GRAD_BOT[c] * ty
-    gdx = X / (FW - 1) - 0.5
-    gdy = Y / (FH - 1) - 0.3
-    g = np.clip(1.0 - np.sqrt(gdx * gdx + gdy * gdy) / 0.6, 0, None) ** 2 * 0.22
-    img = img * (1 - g[..., None]) + gi.GLOW[None, None, :] * g[..., None]
     pil = Image.fromarray(img.clip(0, 255).astype(np.uint8), 'RGB').convert('RGBA')
     # иконка-тайл слева
     tile = 320
@@ -410,9 +400,7 @@ def render_feature_graphic():
         fnt = ImageFont.truetype(FONT_PATH, fsize)
         if fnt.getlength(txt) <= max_w:
             break
-    o = 4
-    d.text((x_text + o, FH // 2 + 6 - o), txt, font=fnt, fill=(0, 0, 0, 120), anchor='lm')
-    d.text((x_text, FH // 2 + 6), txt, font=fnt, fill=(255, 255, 255, 255), anchor='lm')
+    d.text((x_text, FH // 2), txt, font=fnt, fill=(255, 255, 255, 255), anchor='lm')
     return pil
 
 
