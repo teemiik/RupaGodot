@@ -13,6 +13,9 @@
 # Visual brainstorming companion
 .superpowers/
 
+# Python
+__pycache__/
+
 # OS / editor
 .DS_Store
 .idea/

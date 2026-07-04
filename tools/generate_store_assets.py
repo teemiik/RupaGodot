@@ -337,8 +337,9 @@ def render_gameplay(level, paused=False):
         paste_img(img, hand_l, W * 0.2, hy, scale=2.0)
     draw_hud(img, level)
     if paused:
-        d = ImageDraw.Draw(img, 'RGBA')
-        d.rectangle((0, 0, W, H), fill=(0, 0, 0, 77))
+        # затемнение фона 30%: через отдельный слой (alpha_composite),
+        # а не draw.rectangle — иначе альфа заменит пиксели вместо композита.
+        img.alpha_composite(Image.new('RGBA', img.size, (0, 0, 0, 77)))
         pw, ph = min(W * 0.92, 700), H * 0.46
         px, py = (W - pw) / 2, (H - ph) / 2
         rounded_panel(img, px, py, pw, ph, W * 0.05, hsv(250, 0.30, 0.40), hsv(250, 0.55, 0.18))

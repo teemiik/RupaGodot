@@ -28,13 +28,13 @@
   <rect x="6" y="6" width="188" height="188" rx="44" fill="url(#bg)"/>
 
   <!-- кайма-рулайт вокруг отверстия -->
-  <ellipse cx="100" cy="108" rx="48" ry="48" fill="none" stroke="#F5E6C7" stroke-width="2.5" opacity="0.5"/>
+  <ellipse cx="100" cy="100" rx="48" ry="48" fill="none" stroke="#F5E6C7" stroke-width="2.5" opacity="0.5"/>
 
-  <!-- отверстие -->
-  <circle cx="100" cy="108" r="46" fill="url(#hole)"/>
-  <ellipse cx="100" cy="98" rx="44" ry="15" fill="#000000" opacity="0.45"/>
+  <!-- отверстие (по центру плитки) -->
+  <circle cx="100" cy="100" r="46" fill="url(#hole)"/>
+  <ellipse cx="100" cy="90" rx="44" ry="15" fill="#000000" opacity="0.45"/>
 
   <!-- шар на краю -->
-  <ellipse cx="132" cy="94" rx="17" ry="6" fill="#000000" opacity="0.28" filter="url(#soft)"/>
-  <circle cx="132" cy="75" r="16" fill="url(#ball)"/>
+  <ellipse cx="132" cy="86" rx="17" ry="6" fill="#000000" opacity="0.28" filter="url(#soft)"/>
+  <circle cx="132" cy="67" r="16" fill="url(#ball)"/>
 </svg>

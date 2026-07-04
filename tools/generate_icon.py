@@ -38,21 +38,21 @@ BLACK    = np.array([0, 0, 0], dtype=float)
 TILE_PAD, TILE_RX = 6, 44                       # скруглённая плитка
 GLOW_CX, GLOW_CY, GLOW_RX, GLOW_RY = 100, 70, 92, 46
 GLOW_STR = 0.22
-HOLE_CX, HOLE_CY, HOLE_R = 100, 108, 46
+HOLE_CX, HOLE_CY, HOLE_R = 100, 100, 46          # отверстие по центру плитки (100,100)
 RIM_R, RIM_W, RIM_STR = 48, 2.5, 0.5
-INNER_CX, INNER_CY, INNER_RX, INNER_RY = 100, 98, 44, 15
+INNER_CX, INNER_CY, INNER_RX, INNER_RY = 100, 90, 44, 15
 INNER_STR = 0.45
-BSH_CX, BSH_CY, BSH_RX, BSH_RY = 132, 94, 17, 6
+BSH_CX, BSH_CY, BSH_RX, BSH_RY = 132, 86, 17, 6
 BSH_STR = 0.28
-BALL_CX, BALL_CY, BALL_R = 132, 75, 16
+BALL_CX, BALL_CY, BALL_R = 132, 67, 16
 
 # SVG-faithful градиенты (objectBoundingBox -> userSpace, поле 200x200):
-HOLE_GCX, HOLE_GCY, HOLE_GR = 100, 100.64, 57.04   # radialGradient cx=.5 cy=.42 r=.62 (bbox 92)
-BALL_GCX, BALL_GCY, BALL_GR = 126.88, 68.6, 27.2    # radialGradient cx=.34 cy=.3 r=.85 (bbox 32)
+HOLE_GCX, HOLE_GCY, HOLE_GR = 100, 92.64, 57.04   # radialGradient cx=.5 cy=.42 r=.62 (bbox 92)
+BALL_GCX, BALL_GCY, BALL_GR = 126.88, 60.6, 27.2   # radialGradient cx=.34 cy=.3 r=.85 (bbox 32)
 SVG_BLUR = 3.5                                      # feGaussianBlur stdDeviation из icon.svg
 
 # Адаптивная иконка: мотив вписываем в центральную safe-zone (~60% поля)
-GC = np.array([100.5, 107.5])   # центр группы «отверстие+шар» в 200-пространстве
+GC = np.array([100.5, 99.5])   # центр группы «отверстие+шар» в 200-пространстве
 GROUP_EXT = 97.0                # макс. габарит группы
 ADAP_TARGET = 120.0             # целевой габарит в 200-пространстве (~60%)
 ADAP_SCALE = ADAP_TARGET / GROUP_EXT
