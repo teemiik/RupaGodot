@@ -1,0 +1,153 @@
+name: Android
+
+# build runs on pushes to master and on PRs; deploy only on pushes to master.
+# Mirrors the Rupa (libGDX) pipeline, adapted for a Godot/GDScript project:
+# GUT tests gate the build, the APK is exported via the Godot CLI, then it is
+# re-signed with the release keystore (debug fallback on PRs) and deployed to
+# Google Play's internal track.
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref (keeps PR feedback fast).
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6.3"
+
+jobs:
+  build:
+    name: GUT tests + build signed APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Godot's Android export invokes apksigner/zipalign from the Android SDK,
+      # so install build-tools alongside Godot.
+      - name: Set up Android SDK + build-tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;36.0.0'
+
+      - name: Install Godot + export templates
+        run: |
+          set -euo pipefail
+          godot_dir="$RUNNER_TEMP/godot"
+          mkdir -p "$godot_dir"
+          # Headless-capable Linux editor + Android export templates.
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -d "$godot_dir"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          tmpl_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tmpl_dir"
+          unzip -q -o "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -d "$RUNNER_TEMP/tpl"
+          cp "$RUNNER_TEMP/tpl/templates/"* "$tmpl_dir/"
+          ln -s "$godot_dir/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$godot_dir/godot"
+          echo "$godot_dir" >> "$GITHUB_PATH"
+
+      # The committed preset points the debug keystore at a local macOS path;
+      # generate a fresh CI debug keystore and repoint the preset at it so the
+      # export can sign (debug) even before the release keystore is wired up.
+      - name: Generate CI debug keystore + repoint preset
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"$RUNNER_TEMP/debug.keystore\"|" export_presets.cfg
+
+      - name: Import resources (fresh checkout)
+        run: godot --headless --import
+
+      - name: Run GUT tests
+        # Fail fast: don't build/package if tests are red. (-gexit => non-zero on failure.)
+        run: godot --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -gexit -glog=2
+
+      - name: Compute version
+        # versionCode must strictly exceed the highest one already in the Play Store.
+        # The original Rupa (same package com.circlesandholes.game) last shipped
+        # versionCode 18 (versionName 1.0.17); RupaGodot continues above it.
+        # Offset 18 keeps codes monotonic and collision-free across both repos.
+        run: |
+          vc=$((18 + ${GITHUB_RUN_NUMBER}))
+          echo "VERSION_CODE=$vc" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.0.$vc" >> "$GITHUB_ENV"
+
+      - name: Inject version into export preset
+        run: |
+          sed -i "s|^version/code=.*|version/code=${VERSION_CODE}|" export_presets.cfg
+          sed -i "s|^version/name=.*|version/name=\"${VERSION_NAME}\"|" export_presets.cfg
+
+      # Secrets are unavailable on PRs (especially from forks). Only wire up the
+      # release keystore on pushes to master; on PRs the APK stays debug-signed
+      # (still exercises full export compilation).
+      - name: Decode signing keystore
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          printf '%s' "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Export APK
+        # Use --export-debug so Godot signs with the configured *debug* keystore
+        # (--export-release needs a release keystore in the preset, which only
+        # exists on master). The re-sign step below upgrades it to the release
+        # key on master; on PRs it stays debug-signed.
+        # Godot won't create the output dir; it's gitignored, so make it first.
+        run: |
+          mkdir -p build
+          godot --headless --export-debug "Android" build/Rupa.apk
+
+      - name: Re-sign with release keystore (master) / keep debug (PR)
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/release.keystore" ]; then
+            bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+            "$bt/apksigner" sign \
+              --ks "$RUNNER_TEMP/release.keystore" \
+              --ks-pass pass:"$SIGNING_STORE_PASSWORD" \
+              --ks-key-alias "$SIGNING_KEY_ALIAS" \
+              --key-pass pass:"$SIGNING_KEY_PASSWORD" \
+              build/Rupa.apk
+            echo "Re-signed with release keystore."
+          else
+            echo "No release keystore (PR build); keeping debug-signed APK."
+          fi
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/*.apk
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Google Play (internal)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: outputs
+
+      - name: Deploy to Google Play (internal track)
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.circlesandholes.game
+          releaseFiles: outputs/*.apk
+          track: internal
+          status: completed
