@@ -125,11 +125,17 @@ jobs:
       - name: Export release AAB (Gradle build)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         # AAB requires Godot's Gradle build (use_gradle_build=true); the standard
-        # export above only produces APK. Godot generates the Gradle project and
-        # runs gradlew bundleRelease; the release keystore configured above signs it.
+        # export above only produces APK. The Gradle build needs the Android build
+        # template in android/build/ — not committed (the bundled .aar libs are
+        # ~200 MB and exceed GitHub's file limit), so extract it from the installed
+        # export templates. Godot then runs gradlew bundleRelease; the release
+        # keystore configured above signs it.
         run: |
+          set -euo pipefail
+          unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_source.zip" -d android/build
           sed -i "s|^gradle_build/use_gradle_build=.*|gradle_build/use_gradle_build=true|" export_presets.cfg
           sed -i "s|^gradle_build/export_format=.*|gradle_build/export_format=1|" export_presets.cfg
+          mkdir -p build
           godot --headless --export-release "Android" build/Rupa.aab
 
       - name: Upload build outputs
