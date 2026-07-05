@@ -17,7 +17,7 @@ python3 tools/generate_store_assets.py
 |---|---|---|
 | `play_icon_512.png` | 512×512 | Store listing → App icon |
 | `feature_graphic_1024x500.png` | 1024×500 | Store listing → Feature graphic |
-| `screenshots/01_menu.png` … `08_victory_l6.png` | 1080×1920 (9:16) | Store listing → Phone screenshots |
+| `screenshots/*.png` | 1080×1920 (9:16) | Store listing → Phone screenshots — **в репозитории их нет** (делаете сами) |
 
 ## Состав 8 скриншотов
 
@@ -32,6 +32,9 @@ python3 tools/generate_store_assets.py
 
 ## Замечания
 
+- **Скриншоты (`screenshots/`) в репозиторий не коммитятся** — их делает автор
+  (напр. живые кадры из Godot). Скрипт `generate_store_assets.py` может
+  сгенерировать программные макеты локально как референс.
 - Это **программные макеты**, а не живые кадры: точно представляют экраны игры,
   но не являются снимками реального рантайма. При желании получить живые кадры —
   запустите проект в Godot (`/Applications/Godot.app`) и снимите экраны.
