@@ -113,11 +113,32 @@ jobs:
           mkdir -p build
           godot --headless --export-release "Android" build/Rupa.apk
 
+      # AAB is only needed for the Play deploy (master). Gradle build is slow, so
+      # skip it on PRs — PRs still get the release APK artifact above.
+      - name: Set up JDK 17
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Export release AAB (Gradle build)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        # AAB requires Godot's Gradle build (use_gradle_build=true); the standard
+        # export above only produces APK. Godot generates the Gradle project and
+        # runs gradlew bundleRelease; the release keystore configured above signs it.
+        run: |
+          sed -i "s|^gradle_build/use_gradle_build=.*|gradle_build/use_gradle_build=true|" export_presets.cfg
+          sed -i "s|^gradle_build/export_format=.*|gradle_build/export_format=1|" export_presets.cfg
+          godot --headless --export-release "Android" build/Rupa.aab
+
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: build/*.apk
+          name: android-build
+          path: |
+            build/*.apk
+            build/*.aab
           if-no-files-found: error
 
   deploy:
@@ -129,14 +150,14 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: android-apk
+          name: android-build
           path: outputs
 
-      - name: Deploy to Google Play (internal track)
+      - name: Deploy AAB to Google Play (internal track)
         uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.circlesandholes.game
-          releaseFiles: outputs/*.apk
+          releaseFiles: outputs/*.aab
           track: internal
           status: completed
