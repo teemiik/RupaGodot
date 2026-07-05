@@ -2,9 +2,8 @@ name: Android
 
 # build runs on pushes to master and on PRs; deploy only on pushes to master.
 # Mirrors the Rupa (libGDX) pipeline, adapted for a Godot/GDScript project:
-# GUT tests gate the build, the APK is exported via the Godot CLI, then it is
-# re-signed with the release keystore (debug fallback on PRs) and deployed to
-# Google Play's internal track.
+# GUT tests gate the build, the APK is exported via the Godot CLI with the
+# release keystore (debug fallback on PRs), then deployed to Google Play internal.
 on:
   push:
     branches: [ master ]
@@ -52,18 +51,6 @@ jobs:
           ln -s "$godot_dir/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$godot_dir/godot"
           echo "$godot_dir" >> "$GITHUB_PATH"
 
-      # The committed preset points the debug keystore at a local macOS path;
-      # generate a fresh CI debug keystore and repoint the preset at it so the
-      # export can sign (debug) even before the release keystore is wired up.
-      - name: Generate CI debug keystore + repoint preset
-        run: |
-          set -euo pipefail
-          keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
-            -storepass android -alias androiddebugkey -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-          sed -i "s|^keystore/debug=.*|keystore/debug=\"$RUNNER_TEMP/debug.keystore\"|" export_presets.cfg
-
       - name: Import resources (fresh checkout)
         run: godot --headless --import
 
@@ -86,43 +73,45 @@ jobs:
           sed -i "s|^version/code=.*|version/code=${VERSION_CODE}|" export_presets.cfg
           sed -i "s|^version/name=.*|version/name=\"${VERSION_NAME}\"|" export_presets.cfg
 
-      # Secrets are unavailable on PRs (especially from forks). Only wire up the
-      # release keystore on pushes to master; on PRs the APK stays debug-signed
-      # (still exercises full export compilation).
+      # Secrets are unavailable on PRs. Decode the release keystore on master only;
+      # on PRs the build falls back to a generated debug keystore for the release export.
       - name: Decode signing keystore
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           printf '%s' "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - name: Export APK
-        # Use --export-debug so Godot signs with the configured *debug* keystore
-        # (--export-release needs a release keystore in the preset, which only
-        # exists on master). The re-sign step below upgrades it to the release
-        # key on master; on PRs it stays debug-signed.
-        # Godot won't create the output dir; it's gitignored, so make it first.
-        run: |
-          mkdir -p build
-          godot --headless --export-debug "Android" build/Rupa.apk
-
-      - name: Re-sign with release keystore (master) / keep debug (PR)
+      - name: Configure keystores + export release APK
+        # Play rejects debuggable APKs, so ALWAYS use --export-release (non-debuggable).
+        # The release keystore is the real one on master (decoded above) or a freshly
+        # generated debug keystore on PRs (artifact only, never deployed). Godot signs
+        # directly during export, so no separate apksigner step is needed.
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          # Debug keystore: repoints the preset's debug entry and acts as the
+          # release-keystore fallback on PRs.
+          keytool -genkeypair -keystore "$RUNNER_TEMP/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"$RUNNER_TEMP/debug.keystore\"|" export_presets.cfg
+          # Release keystore: real one on master, debug fallback on PRs.
           if [ -s "$RUNNER_TEMP/release.keystore" ]; then
-            bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-            "$bt/apksigner" sign \
-              --ks "$RUNNER_TEMP/release.keystore" \
-              --ks-pass pass:"$SIGNING_STORE_PASSWORD" \
-              --ks-key-alias "$SIGNING_KEY_ALIAS" \
-              --key-pass pass:"$SIGNING_KEY_PASSWORD" \
-              build/Rupa.apk
-            echo "Re-signed with release keystore."
+            rel_ks="$RUNNER_TEMP/release.keystore"
+            rel_user="$SIGNING_KEY_ALIAS"
+            rel_pass="$SIGNING_STORE_PASSWORD"
           else
-            echo "No release keystore (PR build); keeping debug-signed APK."
+            rel_ks="$RUNNER_TEMP/debug.keystore"
+            rel_user="androiddebugkey"
+            rel_pass="android"
           fi
+          # The preset has no keystore/release entry; append one after debug_password.
+          sed -i "s|^keystore/debug_password=.*|&\nkeystore/release=\"$rel_ks\"\nkeystore/release_user=\"$rel_user\"\nkeystore/release_password=\"$rel_pass\"|" export_presets.cfg
+          mkdir -p build
+          godot --headless --export-release "Android" build/Rupa.apk
 
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
