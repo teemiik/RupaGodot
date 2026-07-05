@@ -73,10 +73,13 @@ jobs:
 
       - name: Compute version
         # versionCode must strictly exceed the highest one already in the Play Store.
-        # The offset keeps it monotonic across runs (matches the Rupa pipeline).
+        # The original Rupa (same package com.circlesandholes.game) last shipped
+        # versionCode 18 (versionName 1.0.17); RupaGodot continues above it.
+        # Offset 18 keeps codes monotonic and collision-free across both repos.
         run: |
-          echo "VERSION_CODE=$((8 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
-          echo "VERSION_NAME=1.0.$((7 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
+          vc=$((18 + ${GITHUB_RUN_NUMBER}))
+          echo "VERSION_CODE=$vc" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.0.$vc" >> "$GITHUB_ENV"
 
       - name: Inject version into export preset
         run: |
