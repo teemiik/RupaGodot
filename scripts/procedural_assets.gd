@@ -24,8 +24,30 @@ static func circle(diameter: int, color: Color) -> ImageTexture:
 			elif edge > 0.0:
 				a = edge
 			img.set_pixel(x, y, Color(color.r, color.g, color.b, a * color.a))
+	_fix_alpha_border(img)
 	var tex= ImageTexture.create_from_image(img)
 	return tex
+
+static func soft_circle(diameter: int, color: Color = Color(1, 1, 1, 1)) -> ImageTexture:
+	"""Soft white (or tinted) disc with quadratic alpha falloff. Used for drop shadows.
+	Matches the original libGDX softCircle() used under holes and the ball."""
+	if diameter < 2:
+		diameter = 2
+	var img = Image.create(diameter, diameter, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	var r = diameter / 2.0
+	for y in range(diameter):
+		for x in range(diameter):
+			var dx = x + 0.5 - r
+			var dy = y + 0.5 - r
+			var t = sqrt(dx * dx + dy * dy) / r
+			if t >= 1.0:
+				continue
+			var a = 1.0 - t
+			a *= a  # quadratic, matches original
+			img.set_pixel(x, y, Color(color.r, color.g, color.b, a * color.a))
+	_fix_alpha_border(img)
+	return ImageTexture.create_from_image(img)
 
 static func ball_tex(diameter: int, base: Color) -> ImageTexture:
 	if diameter < 2:
@@ -64,6 +86,7 @@ static func hole_tex(diameter: int, base: Color) -> ImageTexture:
 	if diameter < 2:
 		diameter = 2
 	var img= Image.create(diameter, diameter, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
 	var r= max(1.0, diameter / 2.0 - 0.5)
 	var cx= diameter / 2.0
 	var cy= diameter / 2.0
@@ -78,12 +101,16 @@ static func hole_tex(diameter: int, base: Color) -> ImageTexture:
 				continue
 			if alpha > 1.0:
 				alpha = 1.0
-			var shade= (dist / r - 0.5) * 0.22
+			# For the soft fringe (alpha<1) use shade from the last fully-opaque radius
+			# so we don't brighten even more in the transition zone (reduces light halo).
+			var sdist = dist if alpha >= 1.0 else min(dist, r - 1.0)
+			var shade= (sdist / r - 0.5) * 0.22
 			img.set_pixel(x, y, Color(
 				clamp(base.r + shade, 0, 1),
 				clamp(base.g + shade, 0, 1),
 				clamp(base.b + shade, 0, 1),
 				alpha * base.a))
+	_fix_alpha_border(img)
 	return ImageTexture.create_from_image(img)
 
 static func gradient_circle(diameter: int, top: Color, bottom: Color) -> ImageTexture:
@@ -106,6 +133,7 @@ static func gradient_circle(diameter: int, top: Color, bottom: Color) -> ImageTe
 				continue
 			var a= min(1.0, edge)
 			img.set_pixel(x, y, Color(cr, cg, cb, a * ca))
+	_fix_alpha_border(img)
 	return ImageTexture.create_from_image(img)
 
 static func background_pixel(top: Color, bottom: Color, glow: Color) -> ImageTexture:
@@ -427,3 +455,27 @@ static func _dist_to_seg(px: float, py: float, ax: float, ay: float, bx: float, 
 	var cx2= ax + t * dx; var cy2= ay + t * dy
 	var ex= px - cx2; var ey= py - cy2
 	return sqrt(ex * ex + ey * ey)
+
+static func _fix_alpha_border(img: Image) -> void:
+	"""Propagate rim color into adjacent transparent pixels so that bilinear sampling
+	and texture clamping at the edge do not pull in pure black (or produce halos).
+	Matches the spirit of Godot's importer "fix_alpha_border" + libGDX behavior.
+	Single 1 px border for our circles, two passes are plenty."""
+	var w = img.get_width()
+	var h = img.get_height()
+	var dirs = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]
+	for _p in range(2):  # two passes for safety with propagation
+		for y in range(h):
+			for x in range(w):
+				var c = img.get_pixel(x, y)
+				if c.a > 0.001:
+					continue
+				for d in dirs:
+					var nx = x + d.x
+					var ny = y + d.y
+					if nx < 0 or nx >= w or ny < 0 or ny >= h:
+						continue
+					var nc = img.get_pixel(nx, ny)
+					if nc.a > 0.001:
+						img.set_pixel(x, y, Color(nc.r, nc.g, nc.b, 0.0))
+						break
