@@ -60,8 +60,15 @@ func _draw_shadowed(text: String, y: float, font_size: int, pressed: bool):
 	var x= (Game.w - ts.x) / 2.0
 	var o= maxf(1.0, Game.w * 0.004)
 	if pressed:
-		draw_string(Game.game_font, Vector2(x + o * 0.5, y - o * 0.5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0, 0, 0, 0.6))
-		draw_string(Game.game_font, Vector2(x + o, y - o), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+		# depth press (scale inward) like level tiles, instead of side offset
+		var s = 0.92
+		var ascent = Game.game_font.get_ascent(font_size)
+		var descent = Game.game_font.get_descent(font_size)
+		var cx = x + ts.x / 2.0
+		var cy = y - (ascent - descent) / 2.0
+		draw_set_transform(Vector2(cx, cy), 0.0, Vector2(s, s))
+		draw_string(Game.game_font, Vector2(-ts.x / 2.0, (ascent - descent) / 2.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 	else:
 		draw_string(Game.game_font, Vector2(x + o, y - o), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0, 0, 0, 0.5))
 		draw_string(Game.game_font, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)

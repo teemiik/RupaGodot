@@ -37,6 +37,7 @@ var _pause_font_size: int
 var _pause_icon_tex: Texture2D
 var _panel_tex: Texture2D
 var _panel_shadow_tex: Texture2D
+var _hole_shadow_tex: Texture2D
 var _pause_size: float
 var _pause_x: float
 var _pause_y: float
@@ -74,6 +75,10 @@ func _ready():
 	_board_h = Game.board_height
 	_board_base_x = Game.w * 0.125
 	_board_base_y = _fy(Game.h * 0.06) - _board_h
+
+	# shadow for holes (and potentially ball) to match original libGDX look and soften edges
+	var shadow_diam = int(_hole_diam * 1.4)
+	_hole_shadow_tex = ProceduralAssets.soft_circle(shadow_diam, Color(0, 0, 0, 0.28))
 
 	_timer_size = Game.size_text
 	_pause_font_size = Game.size_text_result
@@ -445,8 +450,14 @@ func _draw_ball():
 
 func _draw_static_holes():
 	var hh = _hole_diam / 2.0
+	var sh = _hole_diam * 1.4
+	var soff = _hole_diam * 0.10   # small downward offset (Godot y increases down) to place shadow "under"
 	for h in _data.holes:
-		draw_texture(Game.hole_tex, Vector2(Game.w * h.x - hh, _fy(Game.h * h.y) - hh))
+		var cx = Game.w * h.x
+		var cy = _fy(Game.h * h.y)
+		# shadow first (dark soft underlay)
+		draw_texture(_hole_shadow_tex, Vector2(cx - sh / 2.0, cy - sh / 2.0 + soff))
+		draw_texture(Game.hole_tex, Vector2(cx - hh, cy - hh))
 
 func _draw_hints():
 	if not _show_hints or _hint_tilted:
@@ -464,9 +475,14 @@ func _draw_hint(tex: Texture2D, x: float, base_y: float):
 
 func _draw_dynamic_holes():
 	var hh = _hole_diam / 2.0
+	var sh = _hole_diam * 1.4
+	var soff = _hole_diam * 0.10
 	for body in _dynamic_hole_bodies:
 		var p = body.position
-		draw_texture(Game.hole_tex, Vector2(p.x - hh, p.y - hh))
+		var cx = p.x
+		var cy = p.y
+		draw_texture(_hole_shadow_tex, Vector2(cx - sh / 2.0, cy - sh / 2.0 + soff))
+		draw_texture(Game.hole_tex, Vector2(cx - hh, cy - hh))
 
 func _draw_barriers():
 	for bar in _data.barriers:
@@ -518,8 +534,15 @@ func _draw_pause_text(text: String, y: float, pressed: bool):
 	var x = Game.w / 2.0 - ts.x / 2.0
 	var o = maxf(1.0, Game.w * 0.004)
 	if pressed:
-		draw_string(Game.game_font, Vector2(x + o * 0.5, y - o * 0.5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _pause_font_size, Color(0, 0, 0, 0.6))
-		draw_string(Game.game_font, Vector2(x + o, y - o), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _pause_font_size, Color.WHITE)
+		# depth press (scale inward) like level tiles, instead of side offset
+		var s = 0.92
+		var ascent = Game.game_font.get_ascent(_pause_font_size)
+		var descent = Game.game_font.get_descent(_pause_font_size)
+		var cx = x + ts.x / 2.0
+		var cy = y - (ascent - descent) / 2.0
+		draw_set_transform(Vector2(cx, cy), 0.0, Vector2(s, s))
+		draw_string(Game.game_font, Vector2(-ts.x / 2.0, (ascent - descent) / 2.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _pause_font_size, Color.WHITE)
+		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 	else:
 		draw_string(Game.game_font, Vector2(x + o, y - o), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _pause_font_size, Color(0, 0, 0, 0.5))
 		draw_string(Game.game_font, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, _pause_font_size, Color.WHITE)

@@ -15,6 +15,7 @@ var _tile_tex: Texture2D
 var _check_tex: Texture2D
 var _check_bg_tex: Texture2D
 var _shadow_tex: Texture2D
+var _shadow_half: float
 var _back_arrow_tex: Texture2D
 var _fade= 0.7
 var _scroll_y= 0.0
@@ -51,7 +52,9 @@ func _ready():
 	_tile_tex = ProceduralAssets.gradient_circle(roundi(_tile), Color(0.32, 0.28, 0.42, 1), Color(0.08, 0.06, 0.14, 1))
 	_check_tex = ProceduralAssets.check_mark(roundi(_tile * 0.17), Color.WHITE)
 	_check_bg_tex = ProceduralAssets.gradient_circle(roundi(_tile * 0.26), Color(0.32, 0.62, 0.38, 1), Color(0.12, 0.32, 0.18, 1))
-	_shadow_tex = ProceduralAssets.gradient_circle(roundi(_tile), Color(0, 0, 0, 0.25), Color(0, 0, 0, 0.25))
+	# larger soft radial falloff for proper drop shadow (not flat + tiny rim)
+	_shadow_tex = ProceduralAssets.soft_circle(roundi(_tile * 1.15), Color(0, 0, 0, 0.30))
+	_shadow_half = _shadow_tex.get_width() / 2.0
 	_back_arrow_tex = ProceduralAssets.back_arrow(arrow_size, Color.WHITE)
 
 func _process(delta):
@@ -72,15 +75,24 @@ func _draw():
 	draw_texture_rect(Game.menu_bg_tex, Rect2(0, 0, Game.w, Game.h), false)
 	var title_ts = Game.game_font.get_string_size(I18N.get_s("level_select_title"), HORIZONTAL_ALIGNMENT_LEFT, -1, _text_size)
 	draw_string(Game.game_font, Vector2(Game.w / 2.0 - title_ts.x / 2.0, _title_y - _scroll_y), I18N.get_s("level_select_title"), HORIZONTAL_ALIGNMENT_LEFT, -1, _text_size, Color.WHITE)
-	var soff= Game.w * 0.007
+	var shadow_off = Game.w * 0.008
 	for i in range(_count):
 		var col= i % _cols
 		var row= i / _cols
 		var bx= _tile_x(col)
 		var by= _tile_y(row) - _scroll_y
-		var ts0 = 1.0 if not (_press_timer > 0 and _pressed_level == i + 1) else 0.92
-		draw_set_transform(Vector2(bx + _tile / 2.0, by + _tile / 2.0), 0.0, Vector2(ts0, ts0))
-		draw_texture(_shadow_tex, Vector2(soff - _tile / 2.0, soff - _tile / 2.0))
+		var level_num = i + 1
+		var is_pressed = _press_timer > 0 and _pressed_level == level_num
+		var s = 0.92 if is_pressed else 1.0
+		# button center (shrink target)
+		var bcx = bx + _tile / 2.0
+		var bcy = by + _tile / 2.0
+		# shadow: larger soft blob, offset down-right, drawn around its own center
+		var sh_scale = s   # the soft_circle is already 1.15x larger base
+		var scx = bcx + shadow_off
+		var scy = bcy + shadow_off * 1.5
+		draw_set_transform(Vector2(scx, scy), 0.0, Vector2(sh_scale, sh_scale))
+		draw_texture(_shadow_tex, Vector2(-_shadow_half, -_shadow_half))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	for i in range(_count):
 		var col= i % _cols
