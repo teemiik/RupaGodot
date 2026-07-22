@@ -33,7 +33,9 @@ jobs:
       - name: Set up Android SDK + build-tools
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools build-tools;36.0.0'
+          # Platform 36 + build-tools: Google Play requires target API 36
+          # (Android 16) for app updates from 2026-08-31.
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
       - name: Install Godot + export templates
         run: |
@@ -133,8 +135,11 @@ jobs:
         run: |
           set -euo pipefail
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_source.zip" -d android/build
+          # target_sdk can only be set when Gradle build is enabled (Godot rejects
+          # an override on the standard APK path). Pin 36 for Play (required from 2026-08-31).
           sed -i "s|^gradle_build/use_gradle_build=.*|gradle_build/use_gradle_build=true|" export_presets.cfg
           sed -i "s|^gradle_build/export_format=.*|gradle_build/export_format=1|" export_presets.cfg
+          sed -i "s|^gradle_build/target_sdk=.*|gradle_build/target_sdk=\"36\"|" export_presets.cfg
           mkdir -p build
           godot --headless --export-release "Android" build/Rupa.aab
 
