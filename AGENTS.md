@@ -81,7 +81,7 @@ Four `Screen`s coordinated through one global state holder (`Game`), with **data
 ## Android Notes
 
 - Export preset "Android": package `com.circlesandholes.game`, name "Rupa", `arm64-v8a` only, `use_gradle_build=false` (standard Godot export, not Gradle). Debug keystore configured; release signing is done in CI by re‑signing the exported APK with `apksigner`.
-- **`gradle_build/target_sdk="36"`** (Android 16) — Google Play requires API 36 for app updates from 2026-08-31. Godot 4.6.3 templates also default to 36; keep the explicit preset so AAB/Gradle builds cannot silently fall back. CI installs `platforms;android-36`.
+- **Target API 36 (Android 16)** — Google Play requires API 36 for app updates from 2026-08-31. Godot 4.6.3 templates already bake targetSdk 36 into the prebuilt APK path; for AAB, CI enables Gradle build and pins `gradle_build/target_sdk="36"` (Godot only allows that override with `use_gradle_build=true`). CI installs `platforms;android-36`.
 - `include_filter="*.properties"` must stay (see CRITICAL).
 - The app **icon** is set via `launcher_icons/main_192x192`; Godot generates all densities + adaptive icons from it.
 
